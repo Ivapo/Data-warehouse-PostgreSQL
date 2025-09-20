@@ -1,6 +1,11 @@
 /*
 DML for Bronze Layer Tables
 DML: Data Manipulation Language, it is a subset of SQL used for inserting, updating, deleting, and retrieving data.
+This is saved as a procedure in the database.
+- Truncates and loads data into the bronze layer tables from CSV files.
+Procedure Name: bronze.load_data
+Usage Example:
+    CALL bronze.load_data();
 */
 
 CREATE OR REPLACE PROCEDURE bronze.load_data()
@@ -133,4 +138,3 @@ BEGIN
 END;
 $$;
 
-CALL bronze.load_data();
