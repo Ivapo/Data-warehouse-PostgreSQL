@@ -327,5 +327,93 @@ CASE
 END AS sls_price
 FROM bronze.crm_sales_details;
  
+------------------------------------------------------------------
+-- Tests: for silver.crm_sales_details table
+------------------------------------------------------------------  
+
+-- Check for sales = quantity * price rule since the other fields were already checked during the insert
+SELECT *
+FROM silver.crm_sales_details
+WHERE sls_sales IS NULL OR sls_sales <= 0 OR sls_sales !=sls_quantity * sls_price; 
+-- No rows should be returned
+
+------------------------------------------------------------------
+-- silver.erp_cust_az12 table
+------------------------------------------------------------------
+
+-- In the cid column, we can check if the values look like the customer ids from the crm_cust_info table, since they can be connected. One way to check if there is something that looks like a customer key from table crm_cust_info in this table, This is one customer key: AW00011000, i need to add % to make it a pattern
+SELECT
+cid
+FROM bronze.erp_cust_az12
+WHERE cid LIKE '%AW00011000%';
+-- We got one row, which cid has 'NAS' prefix. which we will remove.
+
+-- We can also look for cid that dont exist in the crm_cust_info table
+SELECT
+cid
+FROM bronze.erp_cust_az12
+WHERE cid NOT IN (SELECT DISTINCT cst_key FROM silver.crm_cust_info);
+-- we get many rows, and we want none back, so we remove the prefix 'NAS' from the cid values
+
+-- Check impossible birth dates (i.e., birth dates in the future which we will convert to Nulls)
+SELECT bdate
+FROM bronze.erp_cust_az12
+WHERE bdate > CURRENT_DATE;
+-- There are some rows, we will convert them to Nulls
+
+-- Check the unique values in the gen column for normalization
+SELECT DISTINCT gen
+FROM bronze.erp_cust_az12;
+-- Values found: M, F, Male, Female, M, F, Null, and empty. We will normalize them to Male, Female, or n/a like in the cust_info table
+
+SELECT DISTINCT cst_gndr
+FROM silver.crm_cust_info;
 
 
+------------------------------------------------------------------
+-- So we will create the silver.erp_cust_az12 table 
+------------------------------------------------------------------
+
+INSERT INTO silver.erp_cust_az12 (
+    cid,
+    bdate,
+    gen
+)  
+    SELECT 
+    CASE 
+        WHEN cid LIKE 'NAS%' THEN SUBSTRING(cid,4,LENGTH(cid)) 
+        ELSE cid 
+    END AS cid,
+    CASE 
+        WHEN bdate > CURRENT_DATE THEN NULL
+        ELSE bdate
+    END AS bdate,
+    CASE 
+        WHEN UPPER(TRIM(gen)) = 'M' OR UPPER(TRIM(gen)) = 'MALE' THEN 'Male'
+        WHEN UPPER(TRIM(gen)) = 'F' OR UPPER(TRIM(gen)) = 'FEMALE' THEN 'Female'
+        ELSE 'n/a'
+    END AS gen
+    FROM bronze.erp_cust_az12;
+
+------------------------------------------------------------------  
+-- Tests: for silver.erp_cust_az12 table
+------------------------------------------------------------------
+-- Check if all cid values exist in the crm_cust_info table
+SELECT        
+    cid
+FROM silver.erp_cust_az12
+WHERE cid NOT IN (SELECT DISTINCT cst_key FROM silver.crm_cust_info);
+-- No rows should be returned
+
+-- Check impossible birth dates (i.e., birth dates in the future which we converted to to Nulls)
+SELECT bdate
+FROM silver.erp_cust_az12
+WHERE bdate > CURRENT_DATE;
+-- No rows should be returned
+
+-- Check normalized values in gen column
+SELECT DISTINCT gen
+FROM silver.erp_cust_az12;      
+-- Should return: Male, Female, n/a
+
+------------------------------------------------------------------
