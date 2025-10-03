@@ -1,7 +1,7 @@
 /*
-Golden layer: gets data from silver layer, applies business rules and stores in dimensional model (star schema)
+Golden layer: gets data from silver layer, applies business rules and stores in dimensional model (star schema).
+It creates the data objects (views) which are ready to be used for analysis and reporting.
 */
-
 
 -------------------------------
 -- Customer dimension (not fact) / Join multiple silver tables to create a comprehensive customer profile
@@ -40,31 +40,9 @@ bdate AS birthdate,
 cst_create_date AS create_date
 FROM customers;
 
--- there should be some type of quality check here like duplicates, nulls, etc.
-
 -------------------------------
--- Product dimension (not fact) / Join multiple silver tables to create a comprehensive product profile
+-- Product dimension / Join multiple silver tables to create a comprehensive product profile
 -- Assuming silver.prod_info contains cleaned and transformed product data  
-
--- check for duplicates
-SELECT prd_key , COUNT(*) FROM (
-    SELECT
-    pn.prd_id,
-    pn.cat_id,
-    pn.prd_key,
-    pn.prd_nm,
-    pn.prd_cost,
-    pn.prd_line,
-    pn.prd_start_dt,
-    pc.cat,
-    pc.subcat,
-    pc.maintenance
-    FROM silver.crm_prd_info AS pn
-    LEFT JOIN silver.erp_px_cat_g1v2 AS pc ON pn.cat_id = pc.id
-    WHERE prd_end_dt IS NULL)t
-GROUP BY prd_key
-HAVING COUNT(*) > 1;
-
 
 CREATE VIEW gold.dim_products AS
 WITH products AS ( -- Gather all product related data from the silver tables.
@@ -99,10 +77,8 @@ prd_start_dt AS start_date
 FROM products
 WHERE prd_end_dt IS NULL; -- only active products
 
--- there should be some type of quality check here like duplicates, nulls, etc.
-
 -------------------------------
--- Sales fact table (which connects multiple dimensions)
+-- Sales fact table (which connects to the dimension views above)
 CREATE VIEW gold.fact_sales AS
 WITH sales AS (
     SELECT
@@ -133,10 +109,3 @@ sls_quantity AS quantity,
 sls_price AS price
 FROM sales;
 
-
--- checks
-Select *
-From gold.fact_sales AS F 
-LEFT JOIN gold.dim_customers AS C ON C.customer_key = F.customer_key
-LEFT JOIN gold.dim_products AS P ON P.product_key = F.product_key
-Where P.product_key is null OR C.customer_key is null; -- there should be no nulls in these foreign keys    
